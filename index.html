@@ -1,18 +1,180 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <script src="https://cdn.jsdelivr.net/npm/p5@2.3.2/lib/p5.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/p5.sound@0.4.1/dist/p5.sound.min.js"></script>
-    
-    
-    
-    <link rel="stylesheet" type="text/css" href="style.css">
-    <meta charset="utf-8" />
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Río Ctalamochita 3D | Relevamiento Territorial QGIS y Paisaje Sonoro</title>
+    <meta name="description" content="Visualización tridimensional interactiva del Río Ctalamochita entre Villa María y Villa Nueva con modelo 3D DEM estilo QGIS, registros sonoros bioacústicos de campo y simulación de ciclo solar día/noche.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-  </head>
-  <body>
-    <main>
-    </main>
-    <script src="sketch.js"></script>
-  </body>
+    <!-- 3D Viewport Three.js Canvas -->
+    <div id="viewport-container">
+        <canvas id="webgl-canvas"></canvas>
+    </div>
+
+    <!-- Dynamic Sky Color Gradient Overlay -->
+    <div id="sky-overlay"></div>
+
+    <!-- Header & GIS Branding -->
+    <header class="gis-header">
+        <div class="brand-box">
+            <img src="assets/emblem.jpg" alt="Emblema Cartográfico del Río Ctalamochita" class="brand-emblem" id="brand-emblem">
+            <div class="brand-text">
+                <h1>Río Ctalamochita 3D</h1>
+                <div class="brand-subtitle">
+                    <span>Villa María – Villa Nueva</span>
+                    <span class="brand-tag">QGIS DEM MODEL</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- HUD Coordinates & Master Audio Toggle -->
+        <div class="hud-status-bar">
+            <div class="hud-chip" id="hud-coords">
+                <span class="indicator-dot"></span>
+                <span>Coord: <strong>-32.4080°S, -63.2420°W</strong> (Cota <strong>193m</strong> s.n.m.)</span>
+            </div>
+            <button class="btn-audio-master" id="btn-audio-master" title="Activar sonido ambiental de la cuenca">
+                <span>🔈</span> Activar Paisaje Sonoro
+            </button>
+        </div>
+    </header>
+
+    <!-- Toast de ayuda interactiva -->
+    <div class="click-hint-toast" id="click-hint-toast">
+        <span>📍</span>
+        <span>Hacé clic en cualquier punto del modelo 3D para disparar registros de campo del río</span>
+    </div>
+
+    <!-- Panel Izquierdo: Capas Cartográficas QGIS & Vistas de Cámara -->
+    <aside class="left-controls-panel" id="left-controls-panel">
+        <div class="panel-section-title">
+            <span>🗺️</span> Capas del Territorio (QGIS)
+        </div>
+        <div class="layers-list">
+            <label class="layer-toggle">
+                <span>Topografía & Altimetría DEM</span>
+                <input type="checkbox" id="layer-terrain" checked>
+            </label>
+            <label class="layer-toggle">
+                <span>Lámina de Agua (Ctalamochita)</span>
+                <input type="checkbox" id="layer-water" checked>
+            </label>
+            <label class="layer-toggle">
+                <span>Puentes Interurbanos (Alberdi, Perón...)</span>
+                <input type="checkbox" id="layer-bridges" checked>
+            </label>
+            <label class="layer-toggle">
+                <span>Manzanas Urbanas (VM & VN)</span>
+                <input type="checkbox" id="layer-urban" checked>
+            </label>
+            <label class="layer-toggle">
+                <span>Sauces y Monte Ribereño</span>
+                <input type="checkbox" id="layer-vegetation" checked>
+            </label>
+            <label class="layer-toggle">
+                <span>Balizas de Registro Bioacústico</span>
+                <input type="checkbox" id="layer-beacons" checked>
+            </label>
+        </div>
+
+        <div class="panel-section-title" style="margin-top: 10px;">
+            <span>🎥</span> Encuadres de Cámara
+        </div>
+        <div class="camera-views-grid">
+            <button class="btn-cam-view" id="cam-overview">Perspectiva General</button>
+            <button class="btn-cam-view" id="cam-river">Meandro Fluvial</button>
+            <button class="btn-cam-view" id="cam-alberdi">Puente Alberdi</button>
+            <button class="btn-cam-view" id="cam-top">Vista Cenital Nadir</button>
+        </div>
+    </aside>
+
+    <!-- Panel Derecho: Estaciones Bioacústicas y Osciloscopio -->
+    <aside class="right-field-panel" id="right-field-panel">
+        <div class="panel-section-title">
+            <span>📻</span> Espectrograma en Tiempo Real
+        </div>
+        <div class="oscilloscope-box">
+            <div class="oscilloscope-header">
+                <span>BIOACÚSTICA CTALAMOCHITA</span>
+                <span>44.1 kHz</span>
+            </div>
+            <canvas id="oscilloscope-canvas" width="280" height="48"></canvas>
+        </div>
+
+        <div class="panel-section-title" style="margin-top: 6px;">
+            <span>📍</span> Estaciones de Monitoreo Sonoro
+        </div>
+        <div class="field-stations-list" id="field-stations-list">
+            <!-- Rellenado dinámicamente desde app.js -->
+        </div>
+    </aside>
+
+    <!-- Tarjeta Flotante Interactiva de Registro de Campo al Cliquear 3D -->
+    <div class="click-audio-card" id="click-audio-card">
+        <div class="card-header">
+            <span class="card-badge" id="card-badge">REGISTRO DE CAMPO</span>
+            <button class="btn-card-close" id="btn-card-close">×</button>
+        </div>
+        <h2 class="card-title" id="card-title">Balneario Municipal (Villa María)</h2>
+        <div class="card-coords" id="card-coords">Lat -32.4082°, Long -63.2415° • 193 m s.n.m.</div>
+        <p class="card-desc" id="card-desc">Rumor constante del agua sobre arena y cantos de Zorzal Colorado en sauces criollos.</p>
+        <div class="card-actions">
+            <button class="btn-card-action" id="btn-card-replay">
+                <span>🔊</span> Reproducir Registro
+            </button>
+        </div>
+    </div>
+
+    <!-- Leyenda Hipsométrica de Altimetría (Inferior Izquierda) -->
+    <div class="elevation-legend" id="elevation-legend">
+        <span class="legend-title">Cota Altimétrica (s.n.m.)</span>
+        <div class="legend-ramp"></div>
+        <div class="legend-labels">
+            <span>188m (Río)</span>
+            <span>200m</span>
+            <span>212m (Meseta)</span>
+        </div>
+    </div>
+
+    <!-- Cubierta Inferior: Slider de Ciclo Solar (Hora del Día y Luz) -->
+    <footer class="bottom-timeline-deck" id="bottom-timeline-deck">
+        <div class="timeline-header">
+            <div class="timeline-title-group">
+                <span class="timeline-icon" id="time-icon">☀️</span>
+                <span class="timeline-label">Control de Luz y Hora del Día</span>
+                <span class="timeline-phase-tag" id="phase-tag">Mediodía Solar</span>
+            </div>
+            <div class="timeline-hour-display" id="time-display">12:00 hs</div>
+        </div>
+
+        <!-- Slider de Día / Noche -->
+        <div class="slider-container">
+            <div class="time-slider-track"></div>
+            <input type="range" id="time-slider" min="0" max="24" step="0.1" value="12" title="Deslizá para cambiar la hora y la iluminación">
+        </div>
+
+        <!-- Accesos directos a horas clave y reproducción automática -->
+        <div class="time-presets-bar">
+            <button class="preset-pill" data-hour="6.5">🌅 Alba (06:30)</button>
+            <button class="preset-pill" data-hour="9.5">🌤️ Mañana (09:30)</button>
+            <button class="preset-pill active" data-hour="12.0">☀️ Mediodía (12:00)</button>
+            <button class="preset-pill" data-hour="15.0">🦗 Siesta (15:00)</button>
+            <button class="preset-pill" data-hour="18.8">🌇 Hora Dorada (18:45)</button>
+            <button class="preset-pill" data-hour="23.0">🌙 Noche (23:00)</button>
+            <button class="btn-play-cycle" id="btn-play-cycle">▶️ Ciclo 24h</button>
+        </div>
+    </footer>
+
+    <!-- Scripts de Three.js y Dependencias -->
+    <script src="vendor/three.min.js"></script>
+    <script src="vendor/OrbitControls.js"></script>
+    <script src="vendor/GLTFLoader.js"></script>
+
+    <!-- Motor Bioacústico y Aplicación 3D -->
+    <script src="audio-engine.js"></script>
+    <script src="app.js"></script>
+</body>
 </html>
